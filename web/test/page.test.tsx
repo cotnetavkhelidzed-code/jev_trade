@@ -25,7 +25,7 @@ import {
   uninstallResizeObserver,
 } from "./helpers";
 
-const API = process.env.NEXT_PUBLIC_API_URL ?? "https://jev-trader-production.up.railway.app";
+const API = process.env.NEXT_PUBLIC_API_URL ?? "/api/trader";
 
 describe.skipIf(!WEB)("app/layout", () => {
   let layout: Awaited<ReturnType<typeof loadLayout>>;

@@ -16,9 +16,17 @@ Use Bun only — npm is broken on this machine.
 
 ## Config
 
-Copy `.env.example` to `.env.local`. `NEXT_PUBLIC_API_URL` points at the backend
-(default `https://jev-trader-production.up.railway.app`); the app opens an
-EventSource on `$NEXT_PUBLIC_API_URL/events`.
+With Vercel Services, run `vercel dev` from the repository root (or `vercel dev -L`
+without cloud authentication). The browser opens `/api/trader/events` on the same
+origin. The Next.js route handler reads the runtime-only `JEV_APP_URL` binding to
+reach the internal `app` service and forwards snapshots, history and SSE without
+buffering. Vercel injects this variable; do not set it or expose it with a
+`NEXT_PUBLIC_` prefix. The binding is never read during the build or in middleware.
+
+For a standalone dashboard, `NEXT_PUBLIC_API_URL` can explicitly override the
+browser's API base URL. Copy `.env.example` to `.env.local` and set that override
+only when using a separately hosted backend. Remove an existing Railway override
+when switching to the single-project Vercel setup.
 
 ## Layout
 

@@ -182,18 +182,42 @@ Backend execution tests explicitly opt into legacy demo mode through `test/legac
 
 ## Deploy the dry-run demo
 
-Deploy the backend Dockerfile to a Railway service with `DRY_RUN=true`, `MODEL=jev`,
-`TYPESAFE_AI_API_KEY` configured as a secret, `STRATEGY_ENABLED=true`, and `RECORD_RESEARCH=true`.
-Use a fresh persistent working directory for each research session, and preserve its `data/`
-directory when exporting results. Do not enable live sends on the current inactive V1 market.
+The root `vercel.json` defines a single Vercel project with two independently built services:
 
-Deploy `web/` as a separate Vercel Next.js project. Set `NEXT_PUBLIC_API_URL` to the backend's
-public HTTPS URL before building. Local checks are `bun test --coverage`,
-`cd web && bun test --coverage`, and `cd web && bun run build`.
+| Service | Runtime/root | Public access | Calls |
+| --- | --- | --- | --- |
+| `app` | Bun container, repository root, `src/vercel.ts` | Internal only | Monad RPC and the configured model provider |
+| `web` | Next.js, `web/` | All paths through the catch-all rewrite | `app` via the runtime `JEV_APP_URL` binding |
 
-After deployment, check the backend `/` snapshot for the expected model and `dryRun: true`,
-then verify that `/history` gains fresh blocks and the dashboard receives them through `/events`.
-A listening server with an empty history is not a successful trading-demo validation. The
-current empty V1 book must be resolved before this acceptance check can pass.
+The browser uses `/api/trader` for the snapshot, `/api/trader/history` for history and
+`/api/trader/events` for SSE. These read-only Next.js routes proxy to `/`, `/history` and
+`/events` inside `app`. The binding belongs to `web`, where the server-side calls originate;
+it is not a public hostname, build variable or browser variable. Do not set `JEV_APP_URL`.
+
+Import this repository into Vercel with the project Root Directory set to the repository root,
+not `web/`. Clear old project-level build/install/output overrides so the services can build
+independently. In project environment settings, set `MODEL=jev`, `TYPESAFE_AI_API_KEY` as a
+secret, `STRATEGY_ENABLED=true` and `DRY_RUN=true`. Remove any old `NEXT_PUBLIC_API_URL` override
+to use the same-origin proxy. A wallet key is not needed for this deployment.
+
+`src/vercel.ts` always enables dry-run mode, honors Vercel's `PORT` (default 80), and uses a
+fresh writable temporary directory for each instance's logs. `vercel dev` (or `vercel dev -L`)
+starts both services and injects the binding for local testing. Docker is required for the
+container service, and Bun must be on `PATH` for the web service's package manager.
+
+Vercel container services scale on request demand and can stop when idle. Demo history,
+strategy evidence and logs are instance-local and disappear when an instance stops; multiple
+instances do not share them. This configuration is a request-driven dry-run demo, not a
+continuous trading deployment or durable research recorder. The existing `src/index.ts` and
+Dockerfile default remain available for a dedicated worker host. Continuous operation on
+Vercel requires a daemon and shared state before enabling real transactions. See
+[Services](https://vercel.com/docs/services), [bindings](https://vercel.com/docs/services/bindings)
+and [container lifecycle](https://vercel.com/docs/functions/runtimes/container).
+
+Local checks are `bun test --coverage`, `cd web && bun test --coverage`, and
+`cd web && bun run build`. After deployment, check `/api/trader` for the expected model and
+`dryRun: true`, then verify that `/api/trader/history` gains fresh blocks and the dashboard
+receives them through `/api/trader/events`. An empty history is not a successful market-data
+validation: the inactive V1 market still requires the separate V2 migration described above.
 # jev_trade
 # jev_trade

@@ -881,7 +881,7 @@ describe("live loop on the practice exchange", () => {
   afterAll(() => quiet.forEach((s) => s.mockRestore()));
   afterEach(() => ex?.stop());
 
-  async function liveTrader(opts: Parameters<typeof startPracticeExchange>[0], decide: (b: number) => Side = () => "buy", margin: [number, number] = [600, 20]) {
+  async function liveTrader(opts: Parameters<typeof startPracticeExchange>[0], decide: (b: number) => Side | Promise<Side> = () => "buy", margin: [number, number] = [600, 20]) {
     ex = startPracticeExchange({ takersPerBlock: 0, volBps: 0, ...opts });
     config.rpcUrl = config.readRpcUrl = ex.url;
     config.dryRun = false;
@@ -892,7 +892,7 @@ describe("live loop on the practice exchange", () => {
     await market.init();
     const events: BlockEvent[] = [], fills: [number, Fill][] = [];
     const model = { name: "scripted", decide: async (s: TradeState): Promise<Decision> => {
-      const a = decide(s.block);
+      const a = await decide(s.block);
       return { action: a, probabilities: { buy: a === "buy" ? 0.8 : 0.2, sell: a === "buy" ? 0.2 : 0.8, hold: 0 }, upIn10: a === "buy" ? 0.8 : 0.2, latencyMs: 1, inputTokens: 10 };
     } };
     const trader = new Trader(market, model, (e) => events.push(e), (b, f) => fills.push([b, f]));
@@ -903,7 +903,13 @@ describe("live loop on the practice exchange", () => {
   }
 
   test("every block: one batchUpdate that cancels the last order and posts the next; receipts and fills flow back", async () => {
-    const { trader, events, fills, step } = await liveTrader({ seed: 21 }, (b) => (b % 2 ? "buy" : "sell"));
+    const { trader, events, fills, step } = await liveTrader({ seed: 21 }, async (b) => {
+      // This scenario asserts one confirmed cancellation per replacement. Receipt polling and
+      // book reads race, so explicitly wait for the prior receipt before the scripted decision.
+      // The separate delayed-receipt scenarios below exercise decisions that overtake receipts.
+      await until(() => trader.history.at(-1)?.quote?.status !== "sent", 3000, "prior order receipt");
+      return b % 2 ? "buy" : "sell";
+    });
     for (let i = 0; i < 6; i++) await step();
     ex.taker(true, 100_000); ex.taker(false, 100_000); // sweep both sides: whatever we have resting fills
     for (let i = 0; i < 4; i++) await step();

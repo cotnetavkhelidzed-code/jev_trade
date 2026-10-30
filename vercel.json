@@ -1,0 +1,29 @@
+{
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+  "services": {
+    "app": {
+      "root": ".",
+      "runtime": "container",
+      "entrypoint": "Dockerfile",
+      "command": ["bun", "run", "src/vercel.ts"]
+    },
+    "web": {
+      "root": "web",
+      "framework": "nextjs",
+      "bindings": [
+        {
+          "type": "service",
+          "service": "app",
+          "format": "url",
+          "env": "JEV_APP_URL"
+        }
+      ]
+    }
+  },
+  "rewrites": [
+    {
+      "source": "/(.*)",
+      "destination": { "service": "web" }
+    }
+  ]
+}

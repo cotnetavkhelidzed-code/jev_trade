@@ -195,3 +195,4 @@ After deployment, check the backend `/` snapshot for the expected model and `dry
 then verify that `/history` gains fresh blocks and the dashboard receives them through `/events`.
 A listening server with an empty history is not a successful trading-demo validation. The
 current empty V1 book must be resolved before this acceptance check can pass.
+# jev_trade

@@ -112,14 +112,23 @@ For more information, read the Bun API docs in `node_modules/bun-types/docs/**.m
 
 ## The core message (do not break this)
 
-The demo exists to support this tweet. Every design or strategy change must keep all four claims true:
+The demo exists to support this tweet. The user has since authorized keeping suitable resting orders to reduce gas, while Jev still decides every block:
 
 > I built a trading bot with Jev!
 >
 > Jev decides if it should "buy" or "sell", given the price feed of an asset pair, and executes real trades.
 >
-> It uses Monad to place the orders on Kuru's on-chain order book in every 300ms block.
+> It uses Monad and Kuru's on-chain order book, deciding every 300ms block and replacing orders when needed.
 >
 > Demo link: https://jev-trader.vercel.app
 
-Non-negotiables: Jev makes the buy/sell call (not code), from the price feed; real trades from a real wallet; an order placed on Kuru's on-chain book every 300 ms block; the demo is the live dashboard. Never decide every N blocks. No middle dots, em dashes or en dashes in any rendered text. No blinking or pulsing indicators.
+Non-negotiables: Jev makes the buy/sell call (not code), from the price feed, every 300 ms block; real trades from a real wallet; orders rest on Kuru's on-chain book and are replaced when needed (`QUOTE_EVERY_BLOCK=true` restores replacement every block); the demo is the live dashboard. Never decide every N blocks. No middle dots, em dashes or en dashes in any rendered text. No blinking or pulsing indicators.
+
+## Profit-aware execution (user-authorized update)
+
+The user has authorized the book-inspired strategy and all six profitability improvements.
+Jev continues forecasting every block. With STRATEGY_ENABLED=true (default), execution may
+skip or cancel for insufficient evidence, negative net edge or risk limits; blocked forecasts
+must not be automatically reversed. This supersedes the older always-buy/sell execution rule.
+See README's trading rulebook section and src/rulebook.ts. Never claim a profit improvement
+from synthetic tests or reuse future replay observations for an earlier decision.

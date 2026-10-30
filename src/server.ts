@@ -24,9 +24,10 @@ export function startServer(meta: Meta, history: () => BlockEvent[]) {
       if (pathname === "/") return json({ ...meta, latest: history().at(-1) ?? null });
       if (pathname === "/history") return json(history());
       if (pathname === "/events") {
+        let client: ReadableStreamDefaultController<Uint8Array>;
         const stream = new ReadableStream<Uint8Array>({
-          start(c) { clients.add(c); send(c, "snapshot", { ...meta, history: history() }); },
-          cancel(c) { clients.delete(c); },
+          start(c) { client = c; clients.add(c); send(c, "snapshot", { ...meta, history: history() }); },
+          cancel() { clients.delete(client); }, // cancel() gets the reason, not the controller
         });
         return new Response(stream, { headers: { ...CORS, "content-type": "text/event-stream", "cache-control": "no-cache", connection: "keep-alive" } });
       }

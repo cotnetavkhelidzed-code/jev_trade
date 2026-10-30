@@ -1,0 +1,103 @@
+{
+  "date": "2026-10-30",
+  "runtime": "Bun 1.3.14",
+  "backend": {
+    "testsPassed": 213,
+    "testsFailed": 0,
+    "lineCoveragePercent": 98.58,
+    "typecheck": "passed",
+    "dockerBuild": "passed",
+    "dockerImage": "jev-trader:validation-2026-10-30"
+  },
+  "dashboard": {
+    "testsPassed": 200,
+    "testsFailed": 0,
+    "typecheck": "passed",
+    "productionBuild": "passed"
+  },
+  "jevApi": {
+    "ok": true,
+    "source": "synthetic API check",
+    "model": "jev-latest",
+    "decision": {
+      "action": "buy",
+      "probabilities": {
+        "buy": 0.54,
+        "sell": 0.46,
+        "hold": 0
+      },
+      "upIn10": 0.54,
+      "latencyMs": 256.86507200000005,
+      "inputTokens": 1268
+    }
+  },
+  "marketDiagnostics": {
+    "source": "read-only Monad mainnet",
+    "legacyMarket": "0x065C9d28E428A0db40191a54d33d5b7c71a9C394",
+    "currentMarket": "0xc9dE998e272d59a19CEA3783C8dd44f87A86405D",
+    "samples": 5,
+    "validLegacyBooks": 0,
+    "currentTwoSidedBooks": 5,
+    "observations": [
+      {
+        "block": 117867330,
+        "legacyBidLevels": 0,
+        "legacyAskLevels": 7,
+        "currentBidLevels": 5,
+        "currentAskLevels": 5
+      },
+      {
+        "block": 117867335,
+        "legacyBidLevels": 0,
+        "legacyAskLevels": 7,
+        "currentBidLevels": 5,
+        "currentAskLevels": 5
+      },
+      {
+        "block": 117867340,
+        "legacyBidLevels": 0,
+        "legacyAskLevels": 7,
+        "currentBidLevels": 5,
+        "currentAskLevels": 5
+      },
+      {
+        "block": 117867343,
+        "legacyBidLevels": 0,
+        "legacyAskLevels": 7,
+        "currentBidLevels": 5,
+        "currentAskLevels": 5
+      },
+      {
+        "block": 117867347,
+        "legacyBidLevels": 0,
+        "legacyAskLevels": 7,
+        "currentBidLevels": 5,
+        "currentAskLevels": 5
+      }
+    ],
+    "directory": "data/market-check-1793353949592",
+    "replayCompatible": false,
+    "note": "Raw diagnostics only. Spot V2 requires a separate execution and event integration; no profitability result can be inferred."
+  },
+  "reviewFixes": [
+    "Keep the existing margin ledger when block-pinned reads fail, avoiding double-counted newer moves.",
+    "Expire replay orders at the quote horizon, matching the live policy."
+  ],
+  "performanceEvaluation": {
+    "status": "blocked",
+    "reason": "Configured V1 market has no bids. Spot V2 has liquidity but requires a new adapter; raw diagnostics are not replay-compatible.",
+    "profitabilityConclusion": null
+  },
+  "deployment": {
+    "status": "blocked",
+    "reason": "Connected GitHub account has read-only access to origin; Railway and Vercel credentials are absent.",
+    "mode": "dry-run only"
+  },
+  "remainingEngineering": [
+    "Spot V2 custody, calldata, packed-event and fee/minimum-notional integration.",
+    "Restart recovery before unattended live operation."
+  ],
+  "secretScan": {
+    "configuredSecretLeaks": 0
+  }
+}

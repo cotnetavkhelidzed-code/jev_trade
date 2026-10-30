@@ -174,7 +174,7 @@ export default function FlowChart({
       ty,
       block: `#${e.block}`,
       price: fmtPrice(e.mid),
-      trade: side ? `FILL ${side} ${fmtMon(e.fill!.size, 0)}` : quoteText,
+      trade: side ? `FILL ${side} ${fmtMon(e.fill!.size, Number.isInteger(e.fill!.size) ? 0 : 2)}` : quoteText,
       tint: e.fill ? (e.fill.side === "buy" ? "var(--buy-ink)" : "var(--sell-ink)") : q ? (q.side === "buy" ? "var(--buy-ink)" : "var(--sell-ink)") : "var(--muted)",
       lat: e.decision && !e.decision.late ? `${Math.round(e.decision.latencyMs)} ms` : "late",
     };
@@ -196,7 +196,7 @@ export default function FlowChart({
           : "var(--ink)";
   const wordRef = useRef<{ act: string; block: number }>({ act, block: shown?.block ?? 0 });
   if (wordRef.current.act !== act) wordRef.current = { act, block: shown?.block ?? 0 };
-  const conf = d ? Math.max(d.probabilities.buy, d.probabilities.sell, d.probabilities.hold) : 0;
+  const conf = d && !late ? Math.max(d.probabilities.buy, d.probabilities.sell) : null;
   const pos = shown?.position;
   const stance =
     !pos || pos.side === "flat"
@@ -315,7 +315,6 @@ export default function FlowChart({
 
               <g className={styles.tag} style={{ transform: `translateY(${model.endY.toFixed(1)}px)` }}>
                 <line className={styles.guide} x1={w - ANCHOR_GAP + 8} x2={w - TAG_W - 6} y1="0" y2="0" />
-                <circle className={styles.halo} cx={w - ANCHOR_GAP} cy="0" r="4" fill="var(--ink)" />
                 <circle cx={w - ANCHOR_GAP} cy="0" r="4" fill="var(--ink)" />
                 <rect x={w - TAG_W - 4} y="-10" width={TAG_W} height="20" rx="999" fill="var(--ink)" />
                 <text className={styles.tagText} x={w - 4 - TAG_W / 2} y="4" textAnchor="middle">
@@ -350,7 +349,7 @@ export default function FlowChart({
               </div>
               <div className={styles.sub}>
                 <span>{!d || late ? "late" : `${Math.round(d.latencyMs)} ms`}</span>
-                <span>conf {fmtConf(conf)}</span>
+                <span>conf {conf === null ? "-" : fmtConf(conf)}</span>
               </div>
             </div>
           </>

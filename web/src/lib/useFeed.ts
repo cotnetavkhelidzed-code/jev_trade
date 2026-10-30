@@ -12,11 +12,15 @@ const BACKOFF_MIN = 1000;
 const BACKOFF_MAX = 10_000;
 /** If nothing arrives for this long (server pings every few seconds), force a reconnect. */
 const STALE_MS = 45_000;
+/** Fills/quotes for blocks not received yet are held for at most this many blocks. */
+const EARLY_MAX = 50;
 
 interface State extends FeedState {
   /** running accumulators so avgLatencyMs stays O(1) per event */
   latSum: number;
   latCount: number;
+  /** A fill or quote can overtake its own block on the wire: held here until that block arrives. */
+  early: { fills: Record<number, Fill>; quotes: Record<number, Quote> };
 }
 
 type Action =
@@ -34,7 +38,28 @@ const initialState: State = {
   avgLatencyMs: 0,
   latSum: 0,
   latCount: 0,
+  early: { fills: {}, quotes: {} },
 };
+
+const NO_EARLY: State["early"] = { fills: {}, quotes: {} };
+
+/** Keep `item` for `block` until the block arrives (only for blocks newer than any we have). */
+function hold<T>(bucket: Record<number, T>, block: number, item: T): Record<number, T> {
+  const next = { ...bucket, [block]: item };
+  const keys = Object.keys(next).map(Number).sort((a, b) => a - b);
+  for (const k of keys.slice(0, Math.max(0, keys.length - EARLY_MAX))) delete next[k];
+  return next;
+}
+
+/** Attach what was held for `ev.block` and drop anything held for older blocks (they will not come). */
+function release(early: State["early"], ev: BlockEvent): { ev: BlockEvent; early: State["early"] } {
+  const fill = early.fills[ev.block], quote = early.quotes[ev.block];
+  const keep = <T>(b: Record<number, T>) => Object.fromEntries(Object.entries(b).filter(([k]) => Number(k) > ev.block)) as Record<number, T>;
+  return {
+    ev: fill || quote ? { ...ev, ...(fill ? { fill } : {}), ...(quote ? { quote } : {}) } : ev,
+    early: Object.keys(early.fills).length || Object.keys(early.quotes).length ? { fills: keep(early.fills), quotes: keep(early.quotes) } : early,
+  };
+}
 
 /** latencyMs of a decided (non-late) block, or null if it should not count. */
 function latencyOf(e: BlockEvent): number | null {
@@ -77,12 +102,13 @@ function reducer(state: State, action: Action): State {
         avgLatencyMs: avg(latSum, latCount),
         latSum,
         latCount,
+        early: NO_EARLY,
       };
     }
 
     case "block": {
-      const ev = action.event;
-      if (!ev || typeof ev.block !== "number") return state;
+      if (!action.event || typeof action.event.block !== "number") return state;
+      const { ev, early } = release(state.early, action.event);
       const prev = state.events;
       const last = prev.length ? prev[prev.length - 1] : null;
 
@@ -112,6 +138,7 @@ function reducer(state: State, action: Action): State {
           avgLatencyMs: avg(latSum, latCount),
           latSum,
           latCount,
+          early,
         };
       }
 
@@ -141,12 +168,17 @@ function reducer(state: State, action: Action): State {
         avgLatencyMs: avg(latSum, latCount),
         latSum,
         latCount,
+        early,
       };
     }
 
     case "fill": {
       const idx = indexOfBlock(state.events, action.block);
-      if (idx < 0) return state;
+      if (idx < 0) {
+        const newest = state.events.length ? state.events[state.events.length - 1].block : -Infinity;
+        if (action.block <= newest) return state; // an old block we no longer keep
+        return { ...state, early: { ...state.early, fills: hold(state.early.fills, action.block, action.fill) } };
+      }
       const events = state.events.slice();
       const updated: BlockEvent = { ...events[idx], fill: action.fill };
       events[idx] = updated;
@@ -159,7 +191,11 @@ function reducer(state: State, action: Action): State {
 
     case "quote": {
       const idx = indexOfBlock(state.events, action.block);
-      if (idx < 0) return state;
+      if (idx < 0) {
+        const newest = state.events.length ? state.events[state.events.length - 1].block : -Infinity;
+        if (action.block <= newest) return state;
+        return { ...state, early: { ...state.early, quotes: hold(state.early.quotes, action.block, action.quote) } };
+      }
       const events = state.events.slice();
       const updated: BlockEvent = { ...events[idx], quote: action.quote };
       events[idx] = updated;
@@ -254,6 +290,7 @@ export function useFeed(apiUrl: string): FeedState {
       if (closed) return;
       dispatch({ type: "connection", connection: attempt === 0 ? "connecting" : "reconnecting" });
       es = new EventSource(`${base}/events`);
+      armStaleTimer(); // a connection that never opens (and never errors) must still be retried
 
       es.onopen = () => {
         attempt = 0;

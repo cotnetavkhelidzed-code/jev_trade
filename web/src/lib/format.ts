@@ -8,7 +8,7 @@ function safe(n: number | null | undefined): number {
 
 /** 105416201 -> "105,416,201" */
 export function fmtInt(n: number | null | undefined): string {
-  return INT.format(Math.round(safe(n)));
+  return INT.format(Math.round(safe(n)) || 0); // || 0: no "-0" for small negatives
 }
 
 /** 0.0222354 -> "0.022235" (6 decimals, MON/USDC ticks) */
@@ -67,7 +67,7 @@ export function uptime(startedAt: number | null | undefined, now: number = Date.
 
 /** Milliseconds -> "hh:mm:ss" (hours are not capped at 24). */
 export function hhmmss(ms: number): string {
-  const total = Math.floor(Math.max(0, ms) / 1000);
+  const total = Math.floor(Math.max(0, safe(ms)) / 1000);
   const h = Math.floor(total / 3600);
   const m = Math.floor((total % 3600) / 60);
   const s = total % 60;

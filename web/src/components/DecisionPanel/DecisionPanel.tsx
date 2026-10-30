@@ -49,7 +49,8 @@ function BarRow({ label, labelColor, active, value, fill, pct }: BarRowProps) {
 
 export default function DecisionPanel({ latest }: DecisionPanelProps) {
   const decision = latest?.decision ?? null;
-  const late = decision ? decision.late : true;
+  const waiting = latest === null || latest === undefined;
+  const late = decision ? decision.late : !waiting;
   // "hold" is treated as a non-decision, exactly as the feed does.
   const chosen: Chosen =
     decision && !decision.late && decision.action !== "hold"
@@ -60,12 +61,14 @@ export default function DecisionPanel({ latest }: DecisionPanelProps) {
   const decided = decision !== null && !late && chosen !== null;
   const pctOf = (p: number) => (decided ? fmtPct(p) : "-");
 
-  const headline = chosen ? (chosen === "buy" ? "BUY" : "SELL") : "LATE";
+  const headline = chosen ? (chosen === "buy" ? "BUY" : "SELL") : waiting ? "WAITING" : decision && !late ? "SKIP" : "LATE";
   const headlineColor = chosen
     ? chosen === "buy"
       ? "var(--buy-ink)"
       : "var(--sell-ink)"
-    : "var(--late-ink)";
+    : waiting
+      ? "var(--muted)"
+      : "var(--late-ink)";
   const headlinePct = chosen ? fmtPct(probs[chosen]) : "";
 
   return (
@@ -73,8 +76,9 @@ export default function DecisionPanel({ latest }: DecisionPanelProps) {
       <section className={styles.section}>
         <div className={styles.sectionLabel}>STANDING ORDER</div>
         <div className={styles.order}>
-          {"> post a bid or an ask on Kuru's MON/USDC book. every block. no abstaining."}
+          {"> evaluate Kuru's MON/USDC book every block. quote when edge and risk checks pass."}
         </div>
+        {latest?.strategy ? <div className={styles.order}>{latest.strategy.reason}</div> : null}
       </section>
 
       <section className={styles.section}>

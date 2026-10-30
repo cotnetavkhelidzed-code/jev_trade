@@ -1,2 +1,9 @@
 [install]
 minimumReleaseAge = 0
+
+[test]
+# Backend tests only; the dashboard has its own suite (cd web && bun test).
+root = "./test"
+coverageSkipTestFiles = true
+coveragePathIgnorePatterns = ["test/**", "scripts/**"]
+preload = ["./test/legacy-preload.ts"]

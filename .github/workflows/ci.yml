@@ -1,0 +1,30 @@
+name: Validate
+
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: 1.3.14
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      - run: bun install --frozen-lockfile
+      - run: bun run typecheck
+      - run: bun test --coverage
+      - run: bun install --frozen-lockfile
+        working-directory: web
+      - run: bun test --coverage
+        working-directory: web
+      - run: bun run build
+        working-directory: web

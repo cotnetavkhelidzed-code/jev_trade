@@ -2,6 +2,17 @@ const env = (key: string, fallback?: string) => process.env[key] ?? fallback;
 const num = (key: string) => (env(key) ? Number(env(key)) : undefined);
 
 export const config = {
+  makerFeeBpsOverride: num("MAKER_FEE_BPS"),
+  strategyEnabled: env("STRATEGY_ENABLED", "true") !== "false",
+  strategyMinSamples: Number(env("STRATEGY_MIN_SAMPLES", "30")),
+  strategyMinFills: Number(env("STRATEGY_MIN_FILLS", "10")),
+  minEdgeUsd: Number(env("MIN_EDGE_USD", "0.001")),
+  edgeUncertainty: Number(env("EDGE_UNCERTAINTY", "2")),
+  exitCostBps: Number(env("EXIT_COST_BPS", "10")),
+  maxLossUsd: Number(env("MAX_LOSS_USD", "5")),
+  maxVolBps: Number(env("MAX_VOL_BPS", "30")),
+  recordResearch: env("RECORD_RESEARCH", "true") !== "false",
+
   rpcUrl: env("RPC_URL", "https://rpc.monad.xyz")!, // sends, receipts, nonce, gas estimation
   readRpcUrl: env("READ_RPC_URL", "https://rpc.monad.xyz")!, // book reads + eth_blockNumber polling + trade logs
   wsUrl: env("WS_URL"), // optional; polling backstop always runs
@@ -16,12 +27,22 @@ export const config = {
   bankrollUsd: Number(env("BANKROLL_USD", "100")), // used for pnlPct
   /** Quote this many ticks inside the touch (0 = join the best bid/ask). Never crosses: clamps to the touch when the spread is too tight. */
   quoteInsideTicks: Number(env("QUOTE_INSIDE_TICKS", "1")),
+  /**
+   * Off (default): the model still decides every block, but the resting order is only replaced when it has
+   * to move: other side, partly filled, or more than `requoteTicks` from where a new order would go.
+   * Blocks that keep it send nothing and pay no gas. On: a new order every block.
+   */
+  quoteEveryBlock: env("QUOTE_EVERY_BLOCK") === "true",
+  requoteTicks: Number(env("REQUOTE_TICKS", "5")),
   /** Startup deposits into the Kuru margin account, topped up to these balances. Limit orders draw from margin, not the wallet. */
   marginMon: Number(env("MARGIN_MON", "600")),
   marginUsdc: Number(env("MARGIN_USDC", "20")),
-  // Monad charges gas on the LIMIT, so never estimate per block: estimate once at init (or override) and hardcode.
-  gasLimit: num("GAS_LIMIT"),
-  gasLimitFallback: 350_000, // batchUpdate: one cancel + one post-only place measured at ~282k for the place alone
+  // Monad charges gas on the LIMIT, so never estimate per block: estimate one place once at init and size
+  // each tx from it, `gasHeadroom` over the estimate plus `gasPerCancel` for each cancel it carries.
+  gasLimit: num("GAS_LIMIT"), // fixed limit for every tx, overrides the sizing
+  gasLimitFallback: 350_000, // one cancel + one post-only place, if the estimate fails (~282k measured for the place alone)
+  gasHeadroom: Number(env("GAS_HEADROOM", "0.1")),
+  gasPerCancel: Number(env("GAS_PER_CANCEL", "25000")),
   // EIP-1559 type-2 only. Effective price = base + priority, so a high static cap is free.
   maxFeeGwei: Number(env("MAX_FEE_GWEI", "400")),
   priorityFeeGwei: Number(env("PRIORITY_FEE_GWEI", "2")), // Monad hardcodes eth_maxPriorityFeePerGas at 2

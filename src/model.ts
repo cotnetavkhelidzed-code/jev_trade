@@ -1,8 +1,9 @@
 import { experimental_evaluate } from "ai";
 import { typeSafeAi } from "@ai-sdk/typesafe-ai";
 import { config } from "./config";
+import { RULEBOOK } from "./rulebook";
 
-/** Models answer buy or sell. `hold` only appears on late blocks (no decision was made). */
+/** Models forecast buy/sell each block; execution can hold when costs or risk fail. */
 export type Action = "buy" | "sell" | "hold";
 
 /** What the model sees. Compact, relative, human-readable. */
@@ -24,6 +25,8 @@ export interface TradeState {
   trades: { count: number; buyMon: number; sellMon: number; cvdMon: number; vwap: number | null; lastPrice: number | null; lastSide: "buy" | "sell" | null };
   recentTrades: string[]; // newest last, "block side size @ price"
   allowed: { buy: boolean; sell: boolean };
+  portfolio?: { inventoryMon: number; entryPrice: number | null; pendingBuyMon: number; pendingSellMon: number; freeMon: number; freeUsdc: number; netPnlUsd: number; maxPositionMon: number };
+  execution?: { inferenceUsd?: number; volatilityBps: number; makerFeeBps: number; exitCostBps: number; gasUsd: number; quoteAgeBlocks: number; rulebook: string };
 }
 
 export interface Decision {
@@ -43,10 +46,11 @@ const QUESTIONS = {
   direction: {
     type: "choice",
     instructions: {
+      rulebook: JSON.stringify(RULEBOOK),
       question: "Will MON be higher or lower than the current mid after `horizonBlocks` more blocks?",
-      goal: "Make markets on MON-USDC on Kuru. Blocks are ~300 ms; `horizonBlocks` (~30 s) is the horizon. Every block one post-only limit order goes on the side you pick, just inside the touch, replacing the previous one. It never crosses, so we earn `spreadBps` rather than pay it. The cost is adverse selection: a taker fills us exactly when the market is about to run the other way. Pick the side whose inventory you want to be holding `horizonBlocks` from now.",
+      goal: "Make markets on MON-USDC on Kuru. Blocks are ~300 ms; `horizonBlocks` (~30 s) is the horizon. Every block you pick a side for a post-only limit order just inside the touch. An existing order may stay when its side, remaining size and price still fit; otherwise it is cancelled and replaced. It never crosses. One fill captures only the distance to mid; full spread capture requires a successful round trip. The cost is adverse selection: a taker fills us exactly when the market is about to run the other way. Pick the side whose inventory you want to be holding `horizonBlocks` from now.",
       timing: "The order rests on the book from the next block until it is replaced, cancelled or filled. It fills only when a taker crosses it: a bid is filled by a taker sell, an ask by a taker buy. Most blocks do not fill.",
-      inputs: "Taker flow is the strongest signal: `trades.cvdMon` (taker buys minus taker sells over the horizon), `trades.lastSide` and `recentTrades` show who is hitting the book, and therefore who would hit us. `depth` and `book` show resting liquidity per side at several distances from mid; thin depth on one side means price moves easily that way. `returnsBps` and `recentMids` show the path over the horizon. A wide `spreadBps` means more edge per fill. If `allowed.buy` is false the order goes on the sell side regardless, and vice versa.",
+      inputs: "Treat taker flow as a candidate signal to validate: `trades.cvdMon` (taker buys minus taker sells over the horizon), `trades.lastSide` and `recentTrades` show who is hitting the book, and therefore who would hit us. `depth` and `book` show resting liquidity per side at several distances from mid; thin depth on one side means price moves easily that way. `returnsBps` and `recentMids` show the path over the horizon. A wide `spreadBps` means more edge per fill. Portfolio and execution describe inventory and costs. A blocked side is skipped by the execution gate; it is never automatically reversed.",
     },
     criteria: {
       buy: "Post a bid: mid more likely to be higher after `horizonBlocks` blocks. A fill here leaves us long MON, bought below mid.",
@@ -97,9 +101,10 @@ export class MockModel implements Model {
     };
   }
 
+  /** Uniform in [-1.5, 1.5), fixed per block. 32-bit hash: `^` yields a signed int, so finish with `>>> 0`. */
   private noise(block: number) {
-    let h = block * 2654435761 >>> 0;
-    h ^= h >>> 15; h = (h * 2246822519) >>> 0; h ^= h >>> 13;
+    let h = Math.imul(block, 2654435761) >>> 0;
+    h = (h ^ (h >>> 15)) >>> 0; h = Math.imul(h, 2246822519) >>> 0; h = (h ^ (h >>> 13)) >>> 0;
     return ((h % 1000) / 1000 - 0.5) * 3;
   }
 }
